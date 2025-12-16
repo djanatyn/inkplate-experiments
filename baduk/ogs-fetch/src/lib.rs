@@ -26,6 +26,7 @@ pub struct ApiGameResult {
     pub players: ApiPlayers,
     pub outcome: String,
     pub ended: String,
+    pub handicap: u32,
 }
 
 #[derive(Debug, Deserialize)]

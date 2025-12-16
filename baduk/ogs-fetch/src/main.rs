@@ -45,9 +45,9 @@ enum Commands {
         #[arg(long, default_value = "sgf")]
         input_dir: String,
 
-        /// Output C header file
-        #[arg(long, default_value = "games_data.h")]
-        output: String,
+        /// Output directory for C header files
+        #[arg(long, default_value = ".")]
+        output_dir: String,
 
         /// Maximum number of games to compress
         #[arg(long, default_value = "50")]
@@ -65,8 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::FetchGames { output_dir, db } => {
             fetch_games(&output_dir, &db)?;
         }
-        Commands::CompressGames { input_dir, output, max_games } => {
-            compress_games(&input_dir, &output, max_games)?;
+        Commands::CompressGames { input_dir, output_dir, max_games } => {
+            compress_games(&input_dir, &output_dir, max_games)?;
         }
     }
 
@@ -107,6 +107,12 @@ fn fetch_results(user_id: u64, page_size: u32, db_path: &str) -> Result<(), Box<
 
         let mut valid_count = 0;
         for result in api_response.results {
+            // Skip games with handicap (only want even games)
+            if result.handicap > 0 {
+                println!("    Skipping handicap game {} (handicap: {})", result.id, result.handicap);
+                continue;
+            }
+
             // Skip games that didn't complete normally
             if !is_valid_game_outcome(&result.outcome) {
                 println!("    Skipping game {} (outcome: {})", result.id, result.outcome);
@@ -198,7 +204,7 @@ fn fetch_games(output_dir: &str, db_path: &str) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-fn compress_games(input_dir: &str, output: &str, max_games: usize) -> Result<(), Box<dyn std::error::Error>> {
+fn compress_games(input_dir: &str, output_dir: &str, max_games: usize) -> Result<(), Box<dyn std::error::Error>> {
     println!("Compressing games from directory: {}", input_dir);
     println!("Max games to compress: {}", max_games);
 
@@ -223,14 +229,16 @@ fn compress_games(input_dir: &str, output: &str, max_games: usize) -> Result<(),
     let estimated_size = 2 + (games.len() * 2) + total_moves * 2 + games.len();
     println!("  Estimated data size: {} bytes", estimated_size);
 
-    // Generate C header files
-    println!("\nGenerating C header file: {}", output);
-    compression::generate_c_header(&games, output)?;
+    // Generate C header files in output directory
+    let games_data_path = format!("{}/games_data.h", output_dir);
+    let games_metadata_path = format!("{}/games_metadata.h", output_dir);
 
-    // Generate metadata header in same directory
-    let metadata_output = output.replace("games_data.h", "games_metadata.h");
-    println!("Generating metadata file: {}", metadata_output);
-    compression::generate_metadata_header(&games, &metadata_output)?;
+    println!("\nGenerating C header files in: {}", output_dir);
+    compression::generate_c_header(&games, &games_data_path)?;
+    println!("  Generated: {}", games_data_path);
+
+    compression::generate_metadata_header(&games, &games_metadata_path)?;
+    println!("  Generated: {}", games_metadata_path);
 
     println!("Compression complete!");
 

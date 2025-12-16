@@ -99,6 +99,20 @@ fn extract_sgf_property(content: &str, property: &str) -> String {
     String::new()
 }
 
+/// Check if a game has handicap stones (HA property)
+fn has_handicap(content: &str) -> bool {
+    // Look for HA[n] property where n > 0
+    if let Some(start) = content.find("HA[") {
+        let start = start + 3;
+        if let Some(end) = content[start..].find(']') {
+            if let Ok(handicap_str) = content[start..start + end].parse::<i32>() {
+                return handicap_str > 0;
+            }
+        }
+    }
+    false
+}
+
 /// Extract game metadata from SGF content
 fn extract_metadata(content: &str) -> GameMetadata {
     GameMetadata {
@@ -145,6 +159,17 @@ pub fn compress_games_from_directory(
 
         if path.extension().and_then(|s| s.to_str()) == Some("sgf") {
             if let Ok(content) = fs::read_to_string(&path) {
+                // Skip games with handicap stones
+                if has_handicap(&content) {
+                    let filename = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("unknown.sgf")
+                        .to_string();
+                    println!("  Skipping handicap game: {}", filename);
+                    continue;
+                }
+
                 let moves = parse_sgf_moves(&content);
                 if !moves.is_empty() {
                     let filename = path
@@ -331,5 +356,20 @@ mod tests {
         assert_eq!(moves[0], 288); // pd
         // moves[1] is W[dp]: "dp" = (3, 15) = 3 * 19 + 15 = 72
         assert_eq!(moves[1], 72);
+    }
+
+    #[test]
+    fn test_handicap_detection() {
+        // Game with handicap stones
+        let sgf_with_handicap = "(;FF[4]GM[1]HA[2];B[pd];W[dp])";
+        assert!(has_handicap(sgf_with_handicap));
+
+        // Game without handicap stones
+        let sgf_no_handicap = "(;FF[4]GM[1];B[pd];W[dp])";
+        assert!(!has_handicap(sgf_no_handicap));
+
+        // Game with HA[0] should not be treated as handicap
+        let sgf_zero_handicap = "(;FF[4]GM[1]HA[0];B[pd];W[dp])";
+        assert!(!has_handicap(sgf_zero_handicap));
     }
 }
