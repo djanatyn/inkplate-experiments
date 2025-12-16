@@ -1,0 +1,49 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ============================================================================
+// WiFi Configuration
+// ============================================================================
+#define WIFI_SSID "your_wifi_ssid"
+#define WIFI_PASSWORD "your_wifi_password"
+#define WIFI_TIMEOUT 20  // seconds
+
+// ============================================================================
+// Timezone Configuration
+// ============================================================================
+// UTC offset in hours (e.g., -5 for America/New_York, -8 for America/Los_Angeles)
+#define TIMEZONE_OFFSET -5
+
+// ============================================================================
+// Weatherbit API Configuration
+// ============================================================================
+#define WEATHERBIT_API_KEY "your_api_key_here"
+#define WEATHERBIT_CITY_ID "weatherbit_city_id"  // Pittsburgh, PA
+
+// ============================================================================
+// Last.fm API Configuration
+// ============================================================================
+#define LASTFM_API_KEY "your_api_key_here"
+#define LASTFM_USERNAME "your_username_here"
+
+// ============================================================================
+// Update Intervals (in milliseconds)
+// ============================================================================
+#define BINARY_CLOCK_INTERVAL 1000       // Update binary clock every 1 second
+#define TEMP_SENSOR_INTERVAL 30000       // Update temperature every 30 seconds
+#define WEATHER_API_INTERVAL 600000      // Update weather every 10 minutes
+#define LASTFM_API_INTERVAL 600000       // Update Last.fm every 10 minutes
+#define GAME_OF_LIFE_INTERVAL 200        // Update Game of Life every 200ms
+
+// ============================================================================
+// Display Configuration
+// ============================================================================
+#define FULL_REFRESH_EVERY 20            // Do full refresh every 20 partial updates
+#define INITIAL_FRONTLIGHT 31            // Initial frontlight level (0-63)
+
+// ============================================================================
+// Sensor Configuration
+// ============================================================================
+#define BME688_TEMP_OFFSET -4.0          // Temperature calibration offset in Celsius
+
+#endif

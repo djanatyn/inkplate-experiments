@@ -1,0 +1,238 @@
+use clap::Subcommand;
+use ogs_fetch::{compression, is_valid_game_outcome, ApiResponse, Database, Game};
+use std::thread;
+use std::time::Duration;
+
+#[derive(clap::Parser)]
+#[command(name = "ogs-fetch")]
+#[command(about = "Fetch and compress Go games from Online-Go.com", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Fetch game results from OGS API
+    FetchResults {
+        /// User ID to fetch games for
+        #[arg(long)]
+        user_id: u64,
+
+        /// Page size (max 100)
+        #[arg(long, default_value = "100")]
+        page_size: u32,
+
+        /// Database path
+        #[arg(long, default_value = "games.db")]
+        db: String,
+    },
+
+    /// Download SGF files for games
+    FetchGames {
+        /// Output directory for SGF files
+        #[arg(long, default_value = "sgf")]
+        output_dir: String,
+
+        /// Database path
+        #[arg(long, default_value = "games.db")]
+        db: String,
+    },
+
+    /// Compress downloaded games
+    CompressGames {
+        /// Input directory with SGF files
+        #[arg(long, default_value = "sgf")]
+        input_dir: String,
+
+        /// Output C header file
+        #[arg(long, default_value = "games_data.h")]
+        output: String,
+
+        /// Maximum number of games to compress
+        #[arg(long, default_value = "50")]
+        max_games: usize,
+    },
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = <Cli as clap::Parser>::parse();
+
+    match cli.command {
+        Commands::FetchResults { user_id, page_size, db } => {
+            fetch_results(user_id, page_size, &db)?;
+        }
+        Commands::FetchGames { output_dir, db } => {
+            fetch_games(&output_dir, &db)?;
+        }
+        Commands::CompressGames { input_dir, output, max_games } => {
+            compress_games(&input_dir, &output, max_games)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn fetch_results(user_id: u64, page_size: u32, db_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Fetching game results for user {} (page size: {})", user_id, page_size);
+
+    let db = Database::new(db_path)?;
+    db.init_schema()?;
+
+    let mut page = db.get_last_page()?;
+    println!("Resuming from page {}", page);
+
+    loop {
+        page += 1;
+        println!("Fetching page {}...", page);
+
+        let url = format!(
+            "https://online-go.com/api/v1/players/{}/games/?page_size={}&page={}&source=play&ended__isnull=false&height=19&width=19&ordering=-ended",
+            user_id, page_size, page
+        );
+
+        let response = ureq::get(&url).call();
+        let mut response = match response {
+            Ok(resp) => resp,
+            Err(ureq::Error::StatusCode(404)) => {
+                println!("Reached end of results (page {} not found)", page);
+                break;
+            }
+            Err(e) => return Err(Box::new(e)),
+        };
+        let body = response.body_mut().read_to_string()?;
+        let api_response: ApiResponse = serde_json::from_str(&body)?;
+
+        println!("  Found {} games on this page", api_response.results.len());
+
+        let mut valid_count = 0;
+        for result in api_response.results {
+            // Skip games that didn't complete normally
+            if !is_valid_game_outcome(&result.outcome) {
+                println!("    Skipping game {} (outcome: {})", result.id, result.outcome);
+                continue;
+            }
+
+            let game = Game {
+                game_id: result.id,
+                black_player: result.players.black.username.clone(),
+                white_player: result.players.white.username.clone(),
+                result: result.outcome.clone(),
+                date: result.ended.clone(),
+                downloaded: false,
+            };
+            db.insert_game(&game)?;
+            valid_count += 1;
+        }
+
+        println!("  Added {} valid games to database", valid_count);
+
+        // Update last page
+        db.set_last_page(page)?;
+
+        // Rate limiting: 1 request per second
+        thread::sleep(Duration::from_secs(1));
+
+        // Check if there are more pages
+        if api_response.next.is_none() {
+            println!("Reached end of results");
+            break;
+        }
+    }
+
+    let total_games = db.count_games()?;
+    println!("Total games in database: {}", total_games);
+
+    Ok(())
+}
+
+fn fetch_games(output_dir: &str, db_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Fetching SGF files to directory: {}", output_dir);
+
+    std::fs::create_dir_all(output_dir)?;
+
+    let db = Database::new(db_path)?;
+
+    let undownloaded = db.get_undownloaded_games()?;
+    let undownloaded_count = undownloaded.len();
+    println!("Found {} games to download", undownloaded_count);
+
+    let total = db.count_games()?;
+    let mut count = 0;
+
+    for game_id in &undownloaded {
+        let sgf_path = format!("{}/{}.sgf", output_dir, game_id);
+
+        // Skip if already downloaded
+        if std::path::Path::new(&sgf_path).exists() {
+            println!("  Game {} already exists, skipping", game_id);
+            db.mark_game_downloaded(*game_id)?;
+            continue;
+        }
+
+        let url = format!("https://online-go.com/api/v1/games/{}/sgf", game_id);
+
+        match ureq::get(&url).call() {
+            Ok(mut response) => {
+                let sgf_data = response.body_mut().read_to_string()?;
+                std::fs::write(&sgf_path, sgf_data)?;
+                db.mark_game_downloaded(*game_id)?;
+                count += 1;
+
+                let downloaded = db.count_downloaded_games()?;
+                println!("Downloaded {}/{} ({} total) - Game {}", count, undownloaded_count, downloaded, game_id);
+
+                // Rate limiting
+                thread::sleep(Duration::from_millis(1000));
+            }
+            Err(e) => {
+                eprintln!("Failed to download game {}: {}", game_id, e);
+            }
+        }
+    }
+
+    println!("Download complete!");
+    let downloaded = db.count_downloaded_games()?;
+    println!("Downloaded {} out of {} total games", downloaded, total);
+
+    Ok(())
+}
+
+fn compress_games(input_dir: &str, output: &str, max_games: usize) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Compressing games from directory: {}", input_dir);
+    println!("Max games to compress: {}", max_games);
+
+    // Compress games from SGF files
+    let games = compression::compress_games_from_directory(input_dir, max_games)?;
+
+    if games.is_empty() {
+        println!("No games found to compress!");
+        return Ok(());
+    }
+
+    // Calculate statistics
+    let total_moves: usize = games.iter().map(|g| g.moves.len()).sum();
+    let avg_moves = total_moves / games.len();
+
+    println!("\nCompression Statistics:");
+    println!("  Total games: {}", games.len());
+    println!("  Total moves: {}", total_moves);
+    println!("  Average moves per game: {}", avg_moves);
+
+    // Estimate size
+    let estimated_size = 2 + (games.len() * 2) + total_moves * 2 + games.len();
+    println!("  Estimated data size: {} bytes", estimated_size);
+
+    // Generate C header files
+    println!("\nGenerating C header file: {}", output);
+    compression::generate_c_header(&games, output)?;
+
+    // Generate metadata header in same directory
+    let metadata_output = output.replace("games_data.h", "games_metadata.h");
+    println!("Generating metadata file: {}", metadata_output);
+    compression::generate_metadata_header(&games, &metadata_output)?;
+
+    println!("Compression complete!");
+
+    Ok(())
+}
