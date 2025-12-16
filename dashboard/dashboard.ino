@@ -29,6 +29,7 @@
 #include "Network.h"
 #include "DisplayManager.h"
 #include "GameOfLife.h"
+#include "BadukGame.h"
 
 // ============================================================================
 // Global Objects
@@ -39,6 +40,7 @@ StateManager stateManager;
 Network network;
 DisplayManager displayManager(display);
 GameOfLife gameOfLife;
+BadukGame badukGame;
 
 // ============================================================================
 // Timing Variables
@@ -153,6 +155,10 @@ void setup() {
     Serial.println("Initializing Game of Life...");
     gameOfLife.init();
 
+    // 8b. Initialize Baduk Game
+    Serial.println("Initializing Baduk Game...");
+    badukGame.init();
+
     // 9. Initialize state manager
     Serial.println("Initializing state manager...");
     stateManager.init();
@@ -232,15 +238,59 @@ void loop() {
     }
 
     // 5. Update Game of Life (every 200ms)
-    if (stateManager.shouldUpdateGameOfLife(currentMillis)) {
-        gameOfLife.step();
-        gameOfLife.draw(display);
-        stateManager.markGameOfLifeUpdated(currentMillis);
-        needsDisplayUpdate = true;
+    // 5b. Update Game of Life or Baduk based on display mode
+    if (stateManager.displayMode == MODE_GAME_OF_LIFE) {
+        // Game of Life mode
+        if (stateManager.shouldUpdateGameOfLife(currentMillis)) {
+            gameOfLife.step();
+            gameOfLife.draw(display);
+            stateManager.markGameOfLifeUpdated(currentMillis);
+            needsDisplayUpdate = true;
+        }
+    } else if (stateManager.displayMode == MODE_BADUK) {
+        // Baduk mode
+        if (stateManager.shouldUpdateBaduk(currentMillis)) {
+            badukGame.step();
+            displayManager.drawBadukArea();
+            badukGame.draw(display);
+            stateManager.markBadukUpdated(currentMillis);
+            needsDisplayUpdate = true;
+        }
     }
 
-    // 6. Handle touchscreen input for frontlight control
+    // 6. Handle touchscreen input for frontlight control and mode switching
     handleTouchInput();
+
+    // 6b. Handle serial commands for debugging
+    if (Serial.available()) {
+        String cmd = Serial.readStringUntil('\n');
+        cmd.trim();
+        if (cmd.equalsIgnoreCase("MODE GOL")) {
+            Serial.println("Serial command: Switching to Game of Life");
+            if (stateManager.displayMode != MODE_GAME_OF_LIFE) {
+                stateManager.switchDisplayMode(MODE_GAME_OF_LIFE);
+                displayManager.drawAll(&stateManager);
+                gameOfLife.draw(display);
+                display.display();
+                needsDisplayUpdate = false;  // We already updated
+            }
+        } else if (cmd.equalsIgnoreCase("MODE BADUK")) {
+            Serial.println("Serial command: Switching to Baduk");
+            if (stateManager.displayMode != MODE_BADUK) {
+                stateManager.switchDisplayMode(MODE_BADUK);
+                displayManager.drawAll(&stateManager);
+                displayManager.drawBadukArea();
+                badukGame.draw(display);
+                display.display();
+                needsDisplayUpdate = false;  // We already updated
+            }
+        } else if (cmd.equalsIgnoreCase("STATUS")) {
+            Serial.print("Current mode: ");
+            Serial.println(stateManager.displayMode == MODE_GAME_OF_LIFE ? "Game of Life" : "Baduk");
+            Serial.print("Baduk game: ");
+            Serial.println(String(badukGame.currentGameIndex + 1) + "/" + String(badukGame.totalGames));
+        }
+    }
 
     // 7. Perform display update if needed
     if (needsDisplayUpdate) {
@@ -274,13 +324,41 @@ void handleTouchInput() {
         delay(200);  // Debounce
     }
 
-    // Check if bottom half of screen is touched (decrease brightness)
-    if (display.touchInArea(0, 300, 600, 300)) {
-        Serial.println("Touch detected in bottom half (decrease brightness)");
+    // Check if middle area is touched (300-400px, decrease brightness)
+    else if (display.touchInArea(0, 300, 600, 100)) {
+        Serial.println("Touch detected in middle area (decrease brightness)");
         stateManager.decreaseFrontlight();
         display.setFrontlight(stateManager.frontlightLevel);
         Serial.print("Frontlight level: ");
         Serial.println(stateManager.frontlightLevel);
         delay(200);  // Debounce
+    }
+
+    // Check if bottom display area is touched (400-600px) for mode switching
+    // Touch left half (x=0-300) → Game of Life
+    else if (display.touchInArea(0, 400, 300, 200)) {
+        if (stateManager.displayMode != MODE_GAME_OF_LIFE) {
+            Serial.println("Touch detected in bottom left - switching to Game of Life");
+            stateManager.switchDisplayMode(MODE_GAME_OF_LIFE);
+            displayManager.drawAll(&stateManager);  // Full redraw on mode change
+            gameOfLife.draw(display);
+            display.display();
+            Serial.println("Mode switched to Game of Life");
+        }
+        delay(300);  // Debounce
+    }
+
+    // Touch right half (x=300-600) → Baduk
+    else if (display.touchInArea(300, 400, 300, 200)) {
+        if (stateManager.displayMode != MODE_BADUK) {
+            Serial.println("Touch detected in bottom right - switching to Baduk");
+            stateManager.switchDisplayMode(MODE_BADUK);
+            displayManager.drawAll(&stateManager);  // Full redraw on mode change
+            displayManager.drawBadukArea();
+            badukGame.draw(display);
+            display.display();
+            Serial.println("Mode switched to Baduk");
+        }
+        delay(300);  // Debounce
     }
 }

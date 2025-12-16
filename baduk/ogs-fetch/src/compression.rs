@@ -4,7 +4,7 @@ use sgf_parse::{parse, go::Prop};
 /// Parse SGF moves from a game file
 /// Extracts moves in the format ;B[pd] or ;W[cd]
 /// Only parses the main line, stops at variation branches
-pub fn parse_sgf_moves(content: &str) -> Vec<u16> {
+pub fn parse_sgf_moves(content: &str, board_size: u32) -> Vec<u16> {
     let mut moves = Vec::new();
 
     // Parse SGF with sgf-parse library
@@ -30,7 +30,7 @@ pub fn parse_sgf_moves(content: &str) -> Vec<u16> {
             match prop {
                 Prop::B(mv) | Prop::W(mv) => {
                     // Convert move to our coordinate format and encode
-                    if let Some(encoded) = encode_move_from_lib(&mv) {
+                    if let Some(encoded) = encode_move_from_lib(&mv, board_size) {
                         moves.push(encoded);
                     }
                 }
@@ -43,7 +43,7 @@ pub fn parse_sgf_moves(content: &str) -> Vec<u16> {
 }
 
 /// Helper to convert sgf-parse Move to our u16 encoding
-fn encode_move_from_lib(mv: &sgf_parse::go::Move) -> Option<u16> {
+fn encode_move_from_lib(mv: &sgf_parse::go::Move, board_size: u32) -> Option<u16> {
     match mv {
         sgf_parse::go::Move::Pass => {
             // Passes are not stored in our compressed format
@@ -57,15 +57,15 @@ fn encode_move_from_lib(mv: &sgf_parse::go::Move) -> Option<u16> {
                 (point.x + b'a') as char,
                 (point.y + b'a') as char
             );
-            encode_move(&coords)
+            encode_move(&coords, board_size)
         }
     }
 }
 
 /// Encode SGF coordinates (e.g., "pd") to a single number
-/// SGF uses letters a-s (0-18) for both columns and rows
-/// Position = col * 19 + row (where col is first char, row is second char)
-fn encode_move(coords: &str) -> Option<u16> {
+/// SGF uses letters a-s (0-18) for 19x19, a-i (0-8) for 9x9
+/// Position = col * board_size + row (where col is first char, row is second char)
+fn encode_move(coords: &str, board_size: u32) -> Option<u16> {
     if coords.len() < 2 {
         return None;
     }
@@ -77,12 +77,12 @@ fn encode_move(coords: &str) -> Option<u16> {
     let col_num = col.saturating_sub('a' as u32);
     let row_num = row.saturating_sub('a' as u32);
 
-    // Check if coordinates are valid (0-18)
-    if col_num >= 19 || row_num >= 19 {
+    // Check if coordinates are valid for the given board size
+    if col_num >= board_size || row_num >= board_size {
         return None;
     }
 
-    let position = (col_num * 19 + row_num) as u16;
+    let position = (col_num * board_size + row_num) as u16;
     Some(position)
 }
 
@@ -143,6 +143,7 @@ pub struct CompressedGame {
 /// Compress all SGF files in a directory
 pub fn compress_games_from_directory(
     input_dir: &str,
+    board_size: u32,
     max_games: usize,
 ) -> Result<Vec<CompressedGame>, Box<dyn std::error::Error>> {
     let mut games = Vec::new();
@@ -170,7 +171,7 @@ pub fn compress_games_from_directory(
                     continue;
                 }
 
-                let moves = parse_sgf_moves(&content);
+                let moves = parse_sgf_moves(&content, board_size);
                 if !moves.is_empty() {
                     let filename = path
                         .file_name()
@@ -329,16 +330,16 @@ mod tests {
 
     #[test]
     fn test_encode_move() {
-        assert_eq!(encode_move("aa"), Some(0));
-        assert_eq!(encode_move("pd"), Some(15 * 19 + 3));
-        assert_eq!(encode_move("ss"), Some(18 * 19 + 18));
+        assert_eq!(encode_move("aa", 19), Some(0));
+        assert_eq!(encode_move("pd", 19), Some(15 * 19 + 3));
+        assert_eq!(encode_move("ss", 19), Some(18 * 19 + 18));
     }
 
     #[test]
     fn test_parse_sgf_moves() {
         // Test with proper SGF game structure
         let sgf = "(;FF[4]GM[1];B[pd];W[dp];B[pq])";
-        let moves = parse_sgf_moves(sgf);
+        let moves = parse_sgf_moves(sgf, 19);
         assert_eq!(moves.len(), 3);
 
         // Verify first move is pd -> (15, 3) -> 15*19+3 = 288
@@ -351,7 +352,7 @@ mod tests {
         // The SGF (;B[pd](;W[dp])(;W[pp])) has B[pd] with two child variations
         // main_variation() includes the first child, so we get both B[pd] and W[dp]
         let sgf = "(;FF[4]GM[1];B[pd](;W[dp])(;W[pp]))";
-        let moves = parse_sgf_moves(sgf);
+        let moves = parse_sgf_moves(sgf, 19);
         assert_eq!(moves.len(), 2);
         assert_eq!(moves[0], 288); // pd
         // moves[1] is W[dp]: "dp" = (3, 15) = 3 * 19 + 15 = 72

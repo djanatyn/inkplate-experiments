@@ -61,6 +61,7 @@ public:
     void drawBinaryClock(StateManager* state);
     void drawLastFm(StateManager* state);
     void drawGameOfLifeArea();  // Just clear/border for Game of Life to draw on
+    void drawBadukArea();       // Just clear/border for Baduk to draw on
 
     // Utility drawing functions
     void drawSection(int x, int y, int w, int h, const char* title);

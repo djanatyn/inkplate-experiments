@@ -5,6 +5,15 @@
 #include <time.h>
 
 // ============================================================================
+// Display Mode Enumeration
+// ============================================================================
+
+enum DisplayMode {
+    MODE_GAME_OF_LIFE = 0,
+    MODE_BADUK = 1
+};
+
+// ============================================================================
 // Data Structures for Caching API Responses
 // ============================================================================
 
@@ -58,6 +67,10 @@ public:
     int partialUpdateCount;
     int frontlightLevel;
 
+    // Display mode and baduk timing
+    DisplayMode displayMode;
+    unsigned long lastBadukUpdate;
+
     // Constructor
     StateManager();
 
@@ -70,6 +83,7 @@ public:
     bool shouldUpdateWeather(unsigned long currentMillis);
     bool shouldUpdateLastFm(unsigned long currentMillis);
     bool shouldUpdateGameOfLife(unsigned long currentMillis);
+    bool shouldUpdateBaduk(unsigned long currentMillis);
 
     // Update timestamps after performing an update
     void markBinaryClockUpdated(unsigned long currentMillis);
@@ -77,6 +91,12 @@ public:
     void markWeatherUpdated(unsigned long currentMillis);
     void markLastFmUpdated(unsigned long currentMillis);
     void markGameOfLifeUpdated(unsigned long currentMillis);
+    void markBadukUpdated(unsigned long currentMillis);
+
+    // Display mode management
+    void switchDisplayMode(DisplayMode mode);
+    void loadDisplayModeFromEEPROM();
+    void saveDisplayModeToEEPROM();
 
     // Update current time from RTC
     void updateTimeFromRTC();

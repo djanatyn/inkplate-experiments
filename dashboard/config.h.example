@@ -34,12 +34,18 @@
 #define WEATHER_API_INTERVAL 600000      // Update weather every 10 minutes
 #define LASTFM_API_INTERVAL 600000       // Update Last.fm every 10 minutes
 #define GAME_OF_LIFE_INTERVAL 200        // Update Game of Life every 200ms
+#define BADUK_MOVE_INTERVAL 2000         // Advance to next Go move every 2 seconds
 
 // ============================================================================
 // Display Configuration
 // ============================================================================
 #define FULL_REFRESH_EVERY 20            // Do full refresh every 20 partial updates
 #define INITIAL_FRONTLIGHT 31            // Initial frontlight level (0-63)
+
+// ============================================================================
+// EEPROM Configuration (Display Mode Persistence)
+// ============================================================================
+#define EEPROM_MODE_ADDRESS 0            // EEPROM address for stored display mode (0=GOL, 1=Baduk)
 
 // ============================================================================
 // Sensor Configuration

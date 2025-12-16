@@ -23,6 +23,10 @@ enum Commands {
         #[arg(long, default_value = "100")]
         page_size: u32,
 
+        /// Board size (9 or 19)
+        #[arg(long, default_value = "19")]
+        board_size: u32,
+
         /// Database path
         #[arg(long, default_value = "games.db")]
         db: String,
@@ -34,6 +38,10 @@ enum Commands {
         #[arg(long, default_value = "sgf")]
         output_dir: String,
 
+        /// Board size (9 or 19)
+        #[arg(long, default_value = "19")]
+        board_size: u32,
+
         /// Database path
         #[arg(long, default_value = "games.db")]
         db: String,
@@ -44,6 +52,10 @@ enum Commands {
         /// Input directory with SGF files
         #[arg(long, default_value = "sgf")]
         input_dir: String,
+
+        /// Board size (9 or 19)
+        #[arg(long, default_value = "19")]
+        board_size: u32,
 
         /// Output directory for C header files
         #[arg(long, default_value = ".")]
@@ -59,22 +71,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = <Cli as clap::Parser>::parse();
 
     match cli.command {
-        Commands::FetchResults { user_id, page_size, db } => {
-            fetch_results(user_id, page_size, &db)?;
+        Commands::FetchResults { user_id, page_size, board_size, db } => {
+            fetch_results(user_id, page_size, board_size, &db)?;
         }
-        Commands::FetchGames { output_dir, db } => {
-            fetch_games(&output_dir, &db)?;
+        Commands::FetchGames { output_dir, board_size, db } => {
+            fetch_games(&output_dir, board_size, &db)?;
         }
-        Commands::CompressGames { input_dir, output_dir, max_games } => {
-            compress_games(&input_dir, &output_dir, max_games)?;
+        Commands::CompressGames { input_dir, board_size, output_dir, max_games } => {
+            compress_games(&input_dir, board_size, &output_dir, max_games)?;
         }
     }
 
     Ok(())
 }
 
-fn fetch_results(user_id: u64, page_size: u32, db_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Fetching game results for user {} (page size: {})", user_id, page_size);
+fn fetch_results(user_id: u64, page_size: u32, board_size: u32, db_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Fetching game results for user {} (board size: {}x{}, page size: {})", user_id, board_size, board_size, page_size);
 
     let db = Database::new(db_path)?;
     db.init_schema()?;
@@ -87,8 +99,8 @@ fn fetch_results(user_id: u64, page_size: u32, db_path: &str) -> Result<(), Box<
         println!("Fetching page {}...", page);
 
         let url = format!(
-            "https://online-go.com/api/v1/players/{}/games/?page_size={}&page={}&source=play&ended__isnull=false&height=19&width=19&ordering=-ended",
-            user_id, page_size, page
+            "https://online-go.com/api/v1/players/{}/games/?page_size={}&page={}&source=play&ended__isnull=false&height={}&width={}&ordering=-ended",
+            user_id, page_size, page, board_size, board_size
         );
 
         let response = ureq::get(&url).call();
@@ -152,8 +164,8 @@ fn fetch_results(user_id: u64, page_size: u32, db_path: &str) -> Result<(), Box<
     Ok(())
 }
 
-fn fetch_games(output_dir: &str, db_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Fetching SGF files to directory: {}", output_dir);
+fn fetch_games(output_dir: &str, board_size: u32, db_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Fetching SGF files to directory: {} (board size: {}x{})", output_dir, board_size, board_size);
 
     std::fs::create_dir_all(output_dir)?;
 
@@ -204,12 +216,12 @@ fn fetch_games(output_dir: &str, db_path: &str) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-fn compress_games(input_dir: &str, output_dir: &str, max_games: usize) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Compressing games from directory: {}", input_dir);
+fn compress_games(input_dir: &str, board_size: u32, output_dir: &str, max_games: usize) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Compressing games from directory: {} (board size: {}x{})", input_dir, board_size, board_size);
     println!("Max games to compress: {}", max_games);
 
     // Compress games from SGF files
-    let games = compression::compress_games_from_directory(input_dir, max_games)?;
+    let games = compression::compress_games_from_directory(input_dir, board_size, max_games)?;
 
     if games.is_empty() {
         println!("No games found to compress!");
