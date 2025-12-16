@@ -15,10 +15,11 @@
 #define TIMEZONE_OFFSET -5
 
 // ============================================================================
-// Weatherbit API Configuration
+// Weather Configuration (Open-Meteo API)
 // ============================================================================
-#define WEATHERBIT_API_KEY "your_api_key_here"
-#define WEATHERBIT_CITY_ID "weatherbit_city_id"  // Pittsburgh, PA
+#define WEATHER_CITY "San Francisco, CA"
+#define WEATHER_LATITUDE 37.7749
+#define WEATHER_LONGITUDE -122.4194
 
 // ============================================================================
 // Last.fm API Configuration
