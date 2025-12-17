@@ -187,16 +187,16 @@ void BadukGame::drawStones(Inkplate& display) {
 }
 
 void BadukGame::drawGameInfo(Inkplate& display) {
-    display.setTextSize(1);
+    display.setTextSize(2);
     display.setTextColor(BLACK);
 
     // Read metadata from PROGMEM
     GameMetadata metadata;
     memcpy_P(&metadata, &GAMES_METADATA[currentGameIndex], sizeof(GameMetadata));
 
-    // Calculate text position (left 400px area)
-    int infoX = BADUK_AREA_X + 10;
-    int lineHeight = 20;
+    // Calculate text position (left 300px area)
+    int infoX = BADUK_AREA_X + 20;
+    int lineHeight = 25;
     int y = BADUK_AREA_Y + 10;
 
     // Line 1: Game number

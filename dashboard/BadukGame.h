@@ -27,10 +27,13 @@
 #define BADUK_ACTUAL_BOARD_SIZE (BADUK_GRID_SPACING * (BADUK_BOARD_SIZE - 1))  // 192px
 #define BADUK_STONE_RADIUS 10              // Stone radius (fits in 24px spacing)
 
-// Board is positioned on the right side of the display area
-// 200px from x=404 to x=600 gives space for the board
-#define BADUK_BOARD_OFFSET_X (BADUK_AREA_X + 400 + (200 - BADUK_ACTUAL_BOARD_SIZE) / 2)  // 408px
-#define BADUK_BOARD_OFFSET_Y (BADUK_AREA_Y + (BADUK_AREA_H - BADUK_ACTUAL_BOARD_SIZE) / 2)  // 404px
+// Text and board area layout
+#define BADUK_TEXT_AREA_WIDTH 300          // Text area width (left side)
+// Remaining space: 600 - 300 = 300px
+// Board width: 192px
+// Margins per side: (300 - 192) / 2 = 54px
+#define BADUK_BOARD_OFFSET_X (BADUK_AREA_X + BADUK_TEXT_AREA_WIDTH + ((BADUK_AREA_W - BADUK_TEXT_AREA_WIDTH - BADUK_ACTUAL_BOARD_SIZE) / 2))  // 354px
+#define BADUK_BOARD_OFFSET_Y (BADUK_AREA_Y - 5)  // 395px - slight overlap with Last.fm area
 
 // ============================================================================
 // 9x9 Hoshi (Star) Points

@@ -19,7 +19,6 @@ void DisplayManager::drawAll(StateManager* state) {
     display.drawLine(300, 0, 300, 300, BLACK);      // Vertical line between weather/temp and time/clock
     display.drawLine(0, 150, 600, 150, BLACK);      // Horizontal line between row 1 and row 2
     display.drawLine(0, 300, 600, 300, BLACK);      // Horizontal line between row 2 and Last.fm
-    display.drawLine(0, 400, 600, 400, BLACK);      // Horizontal line between Last.fm and Game of Life
 }
 
 void DisplayManager::drawWeather(StateManager* state) {
