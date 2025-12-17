@@ -215,17 +215,17 @@ void DisplayManager::drawLastFm(StateManager* state) {
 
     // Display track name (largest, most important)
     display.setTextSize(3);
-    display.setCursor(LASTFM_X + 10, LASTFM_Y + 3);
+    display.setCursor(LASTFM_X + 20, LASTFM_Y + 3);
     display.println(track);
 
     // Display artist (medium)
     display.setTextSize(2);
-    display.setCursor(LASTFM_X + 10, LASTFM_Y + 32);
+    display.setCursor(LASTFM_X + 20, LASTFM_Y + 32);
     display.println(artist);
 
     // Display album (medium)
     display.setTextSize(2);
-    display.setCursor(LASTFM_X + 10, LASTFM_Y + 54);
+    display.setCursor(LASTFM_X + 20, LASTFM_Y + 54);
     display.println(album);
 
     // Stale indicator
