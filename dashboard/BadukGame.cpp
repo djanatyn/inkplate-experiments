@@ -68,18 +68,46 @@ void BadukGame::applyMove(uint16_t encodedMove) {
 
 void BadukGame::step() {
     if (currentMoveIndex < moveCount) {
-        // Read move from PROGMEM
-        // Offset to this game's data
+        // Find game data offset
         uint16_t gameOffset = pgm_read_word(&GAMES_DATA[2 + currentGameIndex * 2]);
-        // Location of this move: gameOffset + 1 (for move_count byte) + moveIndex*2 (2 bytes per move)
-        uint16_t moveDataOffset = gameOffset + 1 + (currentMoveIndex * 2);
 
-        // Read the 2-byte little-endian move value
-        uint8_t byte0 = pgm_read_byte(&GAMES_DATA[moveDataOffset]);
-        uint8_t byte1 = pgm_read_byte(&GAMES_DATA[moveDataOffset + 1]);
-        uint16_t encodedMove = byte0 | (byte1 << 8);  // Little-endian reconstruction
+        // Read data sequentially (new variable-length format)
+        uint16_t dataOffset = gameOffset + 1;  // Skip move_count byte
 
+        // Skip to current move by iterating through previous moves
+        for (uint16_t i = 0; i < currentMoveIndex; i++) {
+            dataOffset += 2;  // Move position (u16)
+            uint8_t numCaptures = pgm_read_byte(&GAMES_DATA[dataOffset]);
+            dataOffset += 1 + (numCaptures * 2);  // num_captures + captured positions
+        }
+
+        // Read current move
+        uint8_t byte0 = pgm_read_byte(&GAMES_DATA[dataOffset]);
+        uint8_t byte1 = pgm_read_byte(&GAMES_DATA[dataOffset + 1]);
+        uint16_t encodedMove = byte0 | (byte1 << 8);
+        dataOffset += 2;
+
+        // Apply the move
         applyMove(encodedMove);
+
+        // Read and apply captures
+        uint8_t numCaptures = pgm_read_byte(&GAMES_DATA[dataOffset]);
+        dataOffset += 1;
+
+        for (uint8_t i = 0; i < numCaptures; i++) {
+            uint8_t cap0 = pgm_read_byte(&GAMES_DATA[dataOffset]);
+            uint8_t cap1 = pgm_read_byte(&GAMES_DATA[dataOffset + 1]);
+            uint16_t capturedPos = cap0 | (cap1 << 8);
+            dataOffset += 2;
+
+            // Decode and remove captured stone
+            uint8_t capCol = capturedPos / BADUK_BOARD_SIZE;
+            uint8_t capRow = capturedPos % BADUK_BOARD_SIZE;
+            if (capRow < BADUK_BOARD_SIZE && capCol < BADUK_BOARD_SIZE) {
+                board[capRow][capCol] = 0;  // Remove captured stone
+            }
+        }
+
         currentMoveIndex++;
     } else if (currentMoveIndex >= moveCount) {
         // Game finished, advance to next game

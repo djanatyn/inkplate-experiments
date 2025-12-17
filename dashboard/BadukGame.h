@@ -2,8 +2,8 @@
 #define BADUK_GAME_H
 
 #include <Inkplate.h>
-#include "games_data_9x9.h"
-#include "games_metadata_9x9.h"
+#include "games_data.h"
+#include "games_metadata.h"
 
 // ============================================================================
 // Display Area Layout (600x200px at bottom of screen)
