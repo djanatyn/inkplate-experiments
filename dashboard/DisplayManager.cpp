@@ -246,9 +246,6 @@ void DisplayManager::drawBadukArea() {
     // Clear the Baduk (9x9 Go) display area
     // Uses the same space as Game of Life (bottom area)
     display.fillRect(GAMEOFLIFE_X, GAMEOFLIFE_Y, GAMEOFLIFE_W, GAMEOFLIFE_H, WHITE);
-
-    // Draw a border around it
-    display.drawRect(GAMEOFLIFE_X, GAMEOFLIFE_Y, GAMEOFLIFE_W, GAMEOFLIFE_H, BLACK);
 }
 
 void DisplayManager::drawStaleIndicator(int x, int y) {

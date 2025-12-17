@@ -246,9 +246,4 @@ void BadukGame::drawGameInfo(Inkplate& display) {
     strcpy_P(whiteRankBuffer, metadata.white_rank);
     display.print(whiteRankBuffer);
     display.println(")");
-
-    // Line 6: Touch hint
-    y += lineHeight + 5;
-    display.setCursor(infoX, y);
-    display.println("[Touch left for GOL]");
 }
