@@ -33,7 +33,7 @@
 // Board width: 192px
 // Margins per side: (300 - 192) / 2 = 54px
 #define BADUK_BOARD_OFFSET_X (BADUK_AREA_X + BADUK_TEXT_AREA_WIDTH + ((BADUK_AREA_W - BADUK_TEXT_AREA_WIDTH - BADUK_ACTUAL_BOARD_SIZE) / 2))  // 354px
-#define BADUK_BOARD_OFFSET_Y (BADUK_AREA_Y - 5)  // 395px - slight overlap with Last.fm area
+#define BADUK_BOARD_OFFSET_Y (BADUK_AREA_Y - 15)  // 385px - slight overlap with Last.fm area
 
 // ============================================================================
 // 9x9 Hoshi (Star) Points
