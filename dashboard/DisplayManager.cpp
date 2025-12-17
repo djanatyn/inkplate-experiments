@@ -244,8 +244,9 @@ void DisplayManager::drawGameOfLifeArea() {
 
 void DisplayManager::drawBadukArea() {
     // Clear the Baduk (9x9 Go) display area
-    // Uses the same space as Game of Life (bottom area)
-    display.fillRect(GAMEOFLIFE_X, GAMEOFLIFE_Y, GAMEOFLIFE_W, GAMEOFLIFE_H, WHITE);
+    // Board starts at y=385 (overlaps Last.fm by 15px) and extends to ~y=587
+    // Clear from board top to screen bottom (y=385 to y=600)
+    display.fillRect(GAMEOFLIFE_X, GAMEOFLIFE_Y - 15, GAMEOFLIFE_W, GAMEOFLIFE_H + 15, WHITE);
 }
 
 void DisplayManager::drawStaleIndicator(int x, int y) {

@@ -40,7 +40,7 @@
 // ============================================================================
 // Display Configuration
 // ============================================================================
-#define FULL_REFRESH_EVERY 20            // Do full refresh every 20 partial updates
+#define FULL_REFRESH_EVERY 50            // Do full refresh every 50 partial updates
 #define INITIAL_FRONTLIGHT 31            // Initial frontlight level (0-63)
 
 // ============================================================================
