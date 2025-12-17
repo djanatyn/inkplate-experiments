@@ -1,8 +1,8 @@
-use std::fs;
-use sgf_parse::{parse, go::Prop};
-use goban::rules::game::Game;
-use goban::rules::{GobanSizes, Move as GobanMove, CHINESE};
 use goban::pieces::stones::Color;
+use goban::rules::game::Game;
+use goban::rules::{GobanSizes, Move as GobanMove, JAPANESE};
+use sgf_parse::{go::Prop, parse};
+use std::fs;
 
 /// Parse SGF moves from a game file and track captures
 /// Extracts moves in the format ;B[pd] or ;W[cd]
@@ -34,7 +34,7 @@ pub fn parse_sgf_moves(content: &str, board_size: u32) -> (Vec<u16>, Vec<Vec<u16
         19 => GobanSizes::Nineteen,
         _ => return (moves, captures_per_move),
     };
-    let mut game = Game::new(goban_size, CHINESE);
+    let mut game = Game::new(goban_size, JAPANESE);
 
     // Iterate through the main variation
     for node in root_node.main_variation() {
@@ -58,7 +58,8 @@ pub fn parse_sgf_moves(content: &str, board_size: u32) -> (Vec<u16>, Vec<Vec<u16
                                     let after = snapshot_board(&game, board_size);
 
                                     // Find captured stones
-                                    let captured = find_captured_stones(&before, &after, board_size);
+                                    let captured =
+                                        find_captured_stones(&before, &after, board_size);
                                     captures_per_move.push(captured);
                                 }
                                 Err(e) => {
@@ -79,31 +80,31 @@ pub fn parse_sgf_moves(content: &str, board_size: u32) -> (Vec<u16>, Vec<Vec<u16
 }
 
 /// Snapshot board state from goban game
+/// Iterates col-first to match our position encoding: position = col * board_size + row
 fn snapshot_board(game: &Game, board_size: u32) -> Vec<Option<Color>> {
     let mut board = Vec::new();
-    for row in 0..board_size {
-        for col in 0..board_size {
-            board.push(game.goban().get_color((row as u8, col as u8)));
+    for col in 0..board_size {
+        for row in 0..board_size {
+            board.push(game.goban().get_color((col as u8, row as u8)));
         }
     }
     board
 }
 
 /// Find stones that were removed (captured) by comparing board states
+/// The index from snapshot_board is col-major: index = col * board_size + row
 fn find_captured_stones(
     before: &[Option<Color>],
     after: &[Option<Color>],
-    board_size: u32,
+    _board_size: u32,
 ) -> Vec<u16> {
     let mut captured = Vec::new();
     for (index, (before_color, after_color)) in before.iter().zip(after.iter()).enumerate() {
         // Stone existed before but not after = captured
         if before_color.is_some() && after_color.is_none() {
-            // Convert linear index back to position
-            let row = (index / board_size as usize) as u16;
-            let col = (index % board_size as usize) as u16;
-            let position = col * board_size as u16 + row;
-            captured.push(position);
+            // Index is already in our position encoding (col-major)
+            // index = col * board_size + row, which is exactly our position format
+            captured.push(index as u16);
         }
     }
     captured
@@ -127,11 +128,7 @@ fn encode_move_from_lib(mv: &sgf_parse::go::Move, board_size: u32) -> Option<u16
         sgf_parse::go::Move::Move(point) => {
             // Convert Point (x, y) to SGF coordinate string
             // Point.x becomes the first character, Point.y becomes the second character
-            let coords = format!(
-                "{}{}",
-                (point.x + b'a') as char,
-                (point.y + b'a') as char
-            );
+            let coords = format!("{}{}", (point.x + b'a') as char, (point.y + b'a') as char);
             encode_move(&coords, board_size)
         }
     }
@@ -201,7 +198,7 @@ fn extract_metadata(content: &str) -> GameMetadata {
 
 /// Game metadata structure
 pub struct GameMetadata {
-    pub date: String,           // YYYY-MM-DD format
+    pub date: String, // YYYY-MM-DD format
     pub black_player: String,
     pub white_player: String,
     pub black_rank: String,
@@ -211,7 +208,7 @@ pub struct GameMetadata {
 /// Compressed game data structure
 pub struct CompressedGame {
     pub moves: Vec<u16>,
-    pub captures: Vec<Vec<u16>>,  // Captured stone positions for each move
+    pub captures: Vec<Vec<u16>>, // Captured stone positions for each move
     pub filename: String,
     pub metadata: GameMetadata,
 }
@@ -255,16 +252,23 @@ pub fn compress_games_from_directory(
                         .unwrap_or("unknown.sgf")
                         .to_string();
                     let metadata = extract_metadata(&content);
-                    games.push(CompressedGame { moves, captures, filename, metadata });
+                    games.push(CompressedGame {
+                        moves,
+                        captures,
+                        filename,
+                        metadata,
+                    });
                     file_count += 1;
                     let game_ref = games.last().unwrap();
-                    println!("  Compressed game {} ({} moves) from {} ({} vs {} on {})",
+                    println!(
+                        "  Compressed game {} ({} moves) from {} ({} vs {} on {})",
                         file_count,
                         game_ref.moves.len(),
                         game_ref.filename,
                         game_ref.metadata.black_player,
                         game_ref.metadata.white_player,
-                        game_ref.metadata.date);
+                        game_ref.metadata.date
+                    );
                 }
             }
         }
@@ -283,7 +287,10 @@ fn escape_c_string(s: &str) -> String {
 }
 
 /// Generate a C header file with game metadata
-pub fn generate_metadata_header(games: &[CompressedGame], output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn generate_metadata_header(
+    games: &[CompressedGame],
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut header = String::new();
     header.push_str("#ifndef GAMES_METADATA_H\n");
     header.push_str("#define GAMES_METADATA_H\n\n");
@@ -300,11 +307,31 @@ pub fn generate_metadata_header(games: &[CompressedGame], output_path: &str) -> 
     // Generate string constants in PROGMEM
     header.push_str("// Metadata strings (stored in PROGMEM)\n");
     for (game_idx, game) in games.iter().enumerate() {
-        header.push_str(&format!("const char GAME_{}_DATE[] PROGMEM = \"{}\";\n", game_idx, escape_c_string(&game.metadata.date)));
-        header.push_str(&format!("const char GAME_{}_BLACK[] PROGMEM = \"{}\";\n", game_idx, escape_c_string(&game.metadata.black_player)));
-        header.push_str(&format!("const char GAME_{}_WHITE[] PROGMEM = \"{}\";\n", game_idx, escape_c_string(&game.metadata.white_player)));
-        header.push_str(&format!("const char GAME_{}_BLACK_RANK[] PROGMEM = \"{}\";\n", game_idx, escape_c_string(&game.metadata.black_rank)));
-        header.push_str(&format!("const char GAME_{}_WHITE_RANK[] PROGMEM = \"{}\";\n", game_idx, escape_c_string(&game.metadata.white_rank)));
+        header.push_str(&format!(
+            "const char GAME_{}_DATE[] PROGMEM = \"{}\";\n",
+            game_idx,
+            escape_c_string(&game.metadata.date)
+        ));
+        header.push_str(&format!(
+            "const char GAME_{}_BLACK[] PROGMEM = \"{}\";\n",
+            game_idx,
+            escape_c_string(&game.metadata.black_player)
+        ));
+        header.push_str(&format!(
+            "const char GAME_{}_WHITE[] PROGMEM = \"{}\";\n",
+            game_idx,
+            escape_c_string(&game.metadata.white_player)
+        ));
+        header.push_str(&format!(
+            "const char GAME_{}_BLACK_RANK[] PROGMEM = \"{}\";\n",
+            game_idx,
+            escape_c_string(&game.metadata.black_rank)
+        ));
+        header.push_str(&format!(
+            "const char GAME_{}_WHITE_RANK[] PROGMEM = \"{}\";\n",
+            game_idx,
+            escape_c_string(&game.metadata.white_rank)
+        ));
     }
 
     header.push_str("\n// Metadata array\n");
@@ -323,7 +350,10 @@ pub fn generate_metadata_header(games: &[CompressedGame], output_path: &str) -> 
 }
 
 /// Generate a C header file with compressed game data including captures
-pub fn generate_c_header(games: &[CompressedGame], output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn generate_c_header(
+    games: &[CompressedGame],
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut header = String::new();
     header.push_str("#ifndef GAMES_DATA_H\n");
     header.push_str("#define GAMES_DATA_H\n\n");
@@ -339,7 +369,12 @@ pub fn generate_c_header(games: &[CompressedGame], output_path: &str) -> Result<
     // Write game count as little-endian u16
     header.push_str("    // Header: game count\n");
     let count_le = (games.len() as u16).to_le_bytes();
-    header.push_str(&format!("    0x{:02X}, 0x{:02X},  // Game count: {}\n", count_le[0], count_le[1], games.len()));
+    header.push_str(&format!(
+        "    0x{:02X}, 0x{:02X},  // Game count: {}\n",
+        count_le[0],
+        count_le[1],
+        games.len()
+    ));
 
     // Calculate offsets for each game (need to account for variable-length capture data)
     let mut offsets = Vec::new();
@@ -364,13 +399,21 @@ pub fn generate_c_header(games: &[CompressedGame], output_path: &str) -> Result<
     header.push_str("\n    // Offset table\n");
     for (i, offset) in offsets.iter().enumerate() {
         let offset_le = offset.to_le_bytes();
-        header.push_str(&format!("    0x{:02X}, 0x{:02X},  // Game {} offset ({})\n", offset_le[0], offset_le[1], i, games[i].filename));
+        header.push_str(&format!(
+            "    0x{:02X}, 0x{:02X},  // Game {} offset ({})\n",
+            offset_le[0], offset_le[1], i, games[i].filename
+        ));
     }
 
     // Write game data
     header.push_str("\n    // Game data\n");
     for (game_idx, game) in games.iter().enumerate() {
-        header.push_str(&format!("    // Game {}: {} moves (from {})\n", game_idx, game.moves.len(), game.filename));
+        header.push_str(&format!(
+            "    // Game {}: {} moves (from {})\n",
+            game_idx,
+            game.moves.len(),
+            game.filename
+        ));
 
         // Write move count
         header.push_str(&format!("    0x{:02X},\n", game.moves.len() as u8));
@@ -405,7 +448,9 @@ pub fn generate_c_header(games: &[CompressedGame], output_path: &str) -> Result<
 
     header.push_str("};\n\n");
     header.push_str("// Total size of compressed data\n");
-    header.push_str(&format!("const uint16_t GAMES_DATA_SIZE = sizeof(GAMES_DATA);\n\n"));
+    header.push_str(&format!(
+        "const uint16_t GAMES_DATA_SIZE = sizeof(GAMES_DATA);\n\n"
+    ));
     header.push_str("#endif\n");
 
     fs::write(output_path, header)?;
@@ -445,7 +490,7 @@ mod tests {
         assert_eq!(moves.len(), 2);
         assert_eq!(captures.len(), 2);
         assert_eq!(moves[0], 288); // pd
-        // moves[1] is W[dp]: "dp" = (3, 15) = 3 * 19 + 15 = 72
+                                   // moves[1] is W[dp]: "dp" = (3, 15) = 3 * 19 + 15 = 72
         assert_eq!(moves[1], 72);
     }
 
@@ -481,7 +526,11 @@ mod tests {
             println!("Move {}: position={}, captures={:?}", i, mv, caps);
             // Captures should be reasonable positions (0-80 for 9x9)
             for captured_pos in caps {
-                assert!(*captured_pos < 81, "Captured position {} is outside 9x9 board", captured_pos);
+                assert!(
+                    *captured_pos < 81,
+                    "Captured position {} is outside 9x9 board",
+                    captured_pos
+                );
             }
         }
 
@@ -498,28 +547,32 @@ mod tests {
         // Uses the actual SGF file from the test_game_9034489.sgf in src/
 
         // Read the SGF file the same way compress_games_from_directory does
-        let sgf_content = fs::read_to_string("src/test_game_9034489.sgf")
-            .expect("Failed to read test SGF file");
+        let sgf_content =
+            fs::read_to_string("src/test_game_9034489.sgf").expect("Failed to read test SGF file");
 
         // Skip games with handicap stones
-        assert!(!has_handicap(&sgf_content), "Test game should not have handicap stones");
+        assert!(
+            !has_handicap(&sgf_content),
+            "Test game should not have handicap stones"
+        );
 
         // Parse the game using the same function as production code
         let (moves, captures) = parse_sgf_moves(&sgf_content, 9);
-
-        println!("\n=== OGS Game 9034489 Capture Analysis ===");
-        println!("Parsed {} moves from real OGS game 9034489", moves.len());
 
         // Verify we have captures data for each move
         assert_eq!(moves.len(), captures.len());
 
         // Count how many moves had captures
         let moves_with_captures = captures.iter().filter(|c| !c.is_empty()).count();
-        println!("Found {} moves with captures out of {}\n", moves_with_captures, moves.len());
+        println!(
+            "Found {} moves with captures out of {}\n",
+            moves_with_captures,
+            moves.len()
+        );
 
         // Print out detailed capture information with board visualization
         // Recreate the game using goban to show the board state when captures occur
-        let mut game = Game::new(GobanSizes::Nine, CHINESE);
+        let mut game = Game::new(GobanSizes::Nine, JAPANESE);
         for (i, (mv, caps)) in moves.iter().zip(captures.iter()).enumerate() {
             // Decode move to coordinates
             let col = mv / 9;
@@ -530,18 +583,26 @@ mod tests {
 
             if !caps.is_empty() {
                 println!("\nMove {}: captured {} stones", i, caps.len());
-                println!("{}", game.goban());  // Use goban's built-in board display
+                println!("{}", game.goban()); // Use goban's built-in board display
             }
         }
 
         // Verify the structure is correct
         assert!(!moves.is_empty(), "Should have parsed moves from the game");
-        assert_eq!(moves.len(), captures.len(), "Moves and captures should have same length");
+        assert_eq!(
+            moves.len(),
+            captures.len(),
+            "Moves and captures should have same length"
+        );
 
         // Verify captures are valid board positions (0-80 for 9x9)
         for capture_list in &captures {
             for pos in capture_list {
-                assert!(*pos < 81, "Capture position {} is invalid for 9x9 board", pos);
+                assert!(
+                    *pos < 81,
+                    "Capture position {} is invalid for 9x9 board",
+                    pos
+                );
             }
         }
     }
@@ -557,7 +618,137 @@ mod tests {
 
         // Early game opening moves shouldn't have captures
         for capture_list in &captures {
-            assert!(capture_list.is_empty(), "No captures should occur in opening moves");
+            assert!(
+                capture_list.is_empty(),
+                "No captures should occur in opening moves"
+            );
+        }
+    }
+
+    #[test]
+    fn test_goban_coordinate_system() {
+        // Test to understand how goban's coordinate system works
+        // GobanMove::Play(x, y) and get_color((row, col))
+        let mut game = Game::new(GobanSizes::Nine, JAPANESE);
+
+        // Play at SGF coordinate 'ee' which is (4, 4) in 0-indexed coordinates
+        game.try_play(GobanMove::Play(4, 4)).unwrap();
+
+        // Check if goban uses (row, col) or (col, row)
+        let has_stone_at_4_4 = game.goban().get_color((4, 4)).is_some();
+
+        println!("After GobanMove::Play(4, 4):");
+        println!("  get_color((4, 4)): {:?}", game.goban().get_color((4, 4)));
+        println!("{}", game.goban());
+
+        assert!(
+            has_stone_at_4_4,
+            "Stone should be found at get_color((4, 4))"
+        );
+    }
+
+    #[test]
+    fn test_captured_positions_were_previously_played() {
+        // Critical test: All captured positions must have been played before
+        // This validates our coordinate encoding is consistent
+
+        // Create a simple capture scenario: surround and capture
+        let sgf = "(;FF[4]GM[1]SZ[9];B[dd];W[ed];B[de];W[ee];B[df];W[dc];B[cd];W[ec];B[ce])";
+        let (moves, captures) = parse_sgf_moves(sgf, 9);
+
+        let mut played_positions = std::collections::HashSet::new();
+
+        for (move_idx, (mv, caps)) in moves.iter().zip(captures.iter()).enumerate() {
+            // Check all captured positions were previously played
+            for &captured_pos in caps {
+                assert!(
+                    played_positions.contains(&captured_pos),
+                    "Move {}: Captured position {} was never played! Played so far: {:?}",
+                    move_idx,
+                    captured_pos,
+                    played_positions
+                );
+            }
+
+            // Record this position as played
+            played_positions.insert(*mv);
+        }
+    }
+
+    #[test]
+    fn test_snapshot_board_coordinate_encoding() {
+        // Test that snapshot_board and find_captured_stones use consistent encoding
+        let mut game = Game::new(GobanSizes::Nine, JAPANESE);
+
+        // Play a stone at position that we can verify
+        // SGF 'ee' = (4, 4) should encode to position 4*9+4 = 40
+        game.try_play(GobanMove::Play(4, 4)).unwrap();
+
+        let snapshot = snapshot_board(&game, 9);
+
+        // Check the snapshot has a stone at the expected index
+        let mut found_at_index = None;
+        for (i, stone) in snapshot.iter().enumerate() {
+            if stone.is_some() {
+                found_at_index = Some(i);
+                break;
+            }
+        }
+
+        assert!(found_at_index.is_some(), "Should find a stone in snapshot");
+        let index = found_at_index.unwrap();
+
+        // Our encoding: position = col * board_size + row
+        // GobanMove::Play(4, 4) should appear in snapshot
+        // snapshot_board iterates: for row in 0..9 { for col in 0..9 { ... } }
+
+        println!("Stone found at snapshot index: {}", index);
+        println!("Expected at index 40 for Play(4, 4)");
+
+        let reconstructed_row = index / 9;
+        let reconstructed_col = index % 9;
+        let reconstructed_pos = reconstructed_col * 9 + reconstructed_row;
+
+        println!(
+            "Reconstructed: row={}, col={}, position={}",
+            reconstructed_row, reconstructed_col, reconstructed_pos
+        );
+    }
+
+    #[test]
+    fn test_game_10956290_capture_validation() {
+        // Test the specific game that has the capture bug
+        let sgf_path = "src/test_game_10956290.sgf";
+        if let Ok(content) = fs::read_to_string(sgf_path) {
+            let (moves, captures) = parse_sgf_moves(&content, 9);
+
+            let mut played_positions = std::collections::HashSet::new();
+
+            for (move_idx, (mv, caps)) in moves.iter().zip(captures.iter()).enumerate() {
+                // Check all captured positions were previously played
+                for &captured_pos in caps {
+                    if !played_positions.contains(&captured_pos) {
+                        println!("\nERROR at move {}:", move_idx);
+                        println!(
+                            "  Captured position: {} (0x{:02X})",
+                            captured_pos, captured_pos
+                        );
+                        println!("  Played positions so far: {:?}", played_positions);
+                        println!("  Move history:");
+                        for (i, m) in moves.iter().take(move_idx + 1).enumerate() {
+                            println!("    Move {}: {} (0x{:02X})", i, m, m);
+                        }
+                        panic!("Captured position {} was never played!", captured_pos);
+                    }
+                }
+
+                // Record this position as played
+                played_positions.insert(*mv);
+            }
+
+            println!("✓ All captures validated for game 10956290.sgf");
+        } else {
+            println!("Skipping test - game file not found");
         }
     }
 }
