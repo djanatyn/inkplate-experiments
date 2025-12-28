@@ -3,3 +3,6 @@ baduk/ogs-fetch/sgf/
 baduk/ogs-fetch/sgf-9x9/
 baduk/ogs-fetch/target/
 dashboard/config.h
+poetrybox/poems
+poetrybox/poems_data.h
+**/target
