@@ -1,5 +1,5 @@
-#ifndef NETWORK_H
-#define NETWORK_H
+#ifndef DASHBOARD_NETWORK_H
+#define DASHBOARD_NETWORK_H
 
 #include <Arduino.h>
 #include <HTTPClient.h>
@@ -9,12 +9,12 @@
 #include "StateManager.h"
 
 // ============================================================================
-// Network Class for API Integration
+// DashboardNetwork Class for API Integration
 // ============================================================================
 
-class Network {
+class DashboardNetwork {
 public:
-    Network();
+    DashboardNetwork();
 
     // WiFi management
     void begin(const char* ssid, const char* password, int timeout);

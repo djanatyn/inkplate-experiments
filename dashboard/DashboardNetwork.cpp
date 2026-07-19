@@ -1,8 +1,8 @@
-#include "Network.h"
+#include "DashboardNetwork.h"
 
-Network::Network() {}
+DashboardNetwork::DashboardNetwork() {}
 
-void Network::begin(const char* ssid, const char* password, int timeout) {
+void DashboardNetwork::begin(const char* ssid, const char* password, int timeout) {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 
@@ -26,18 +26,18 @@ void Network::begin(const char* ssid, const char* password, int timeout) {
     }
 }
 
-bool Network::isConnected() {
+bool DashboardNetwork::isConnected() {
     return WiFi.status() == WL_CONNECTED;
 }
 
-void Network::reconnect(const char* ssid, const char* password, int timeout) {
+void DashboardNetwork::reconnect(const char* ssid, const char* password, int timeout) {
     if (!isConnected()) {
         Serial.println("WiFi disconnected, reconnecting...");
         begin(ssid, password, timeout);
     }
 }
 
-String Network::makeHTTPRequest(const char* url) {
+String DashboardNetwork::makeHTTPRequest(const char* url) {
     HTTPClient http;
     String response = "";
 
@@ -83,7 +83,7 @@ String Network::makeHTTPRequest(const char* url) {
     return response;
 }
 
-bool Network::parseJSONFromResponse(const String& response, JsonDocument& doc) {
+bool DashboardNetwork::parseJSONFromResponse(const String& response, JsonDocument& doc) {
     if (response.length() == 0) {
         Serial.println("Empty response");
         return false;
@@ -161,7 +161,7 @@ bool Network::parseJSONFromResponse(const String& response, JsonDocument& doc) {
     return true;
 }
 
-bool Network::parseWeatherJSON(const JsonDocument& doc, WeatherData* data) {
+bool DashboardNetwork::parseWeatherJSON(const JsonDocument& doc, WeatherData* data) {
     Serial.println("\n=== Parsing Weather JSON (Open-Meteo) ===");
 
     if (!doc.containsKey("current")) {
@@ -231,7 +231,7 @@ bool Network::parseWeatherJSON(const JsonDocument& doc, WeatherData* data) {
     return true;
 }
 
-bool Network::parseLastFmJSON(const JsonDocument& doc, LastFmData* data) {
+bool DashboardNetwork::parseLastFmJSON(const JsonDocument& doc, LastFmData* data) {
     Serial.println("\n=== Parsing Last.fm JSON ===");
     Serial.print("Document size: ");
     Serial.println(doc.size());
@@ -329,7 +329,7 @@ bool Network::parseLastFmJSON(const JsonDocument& doc, LastFmData* data) {
     return true;
 }
 
-bool Network::fetchWeather(WeatherData* data, float latitude, float longitude) {
+bool DashboardNetwork::fetchWeather(WeatherData* data, float latitude, float longitude) {
     if (!isConnected()) {
         Serial.println("Not connected to WiFi, cannot fetch weather");
         data->isStale = true;
@@ -370,7 +370,7 @@ bool Network::fetchWeather(WeatherData* data, float latitude, float longitude) {
     return true;
 }
 
-bool Network::fetchLastFm(LastFmData* data, const char* apiKey, const char* username) {
+bool DashboardNetwork::fetchLastFm(LastFmData* data, const char* apiKey, const char* username) {
     if (!isConnected()) {
         Serial.println("Not connected to WiFi, cannot fetch Last.fm data");
         data->isStale = true;

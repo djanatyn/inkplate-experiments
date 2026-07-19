@@ -26,7 +26,7 @@
 // Include project headers
 #include "config.h"
 #include "StateManager.h"
-#include "Network.h"
+#include "DashboardNetwork.h"
 #include "DisplayManager.h"
 #include "GameOfLife.h"
 #include "BadukGame.h"
@@ -37,7 +37,7 @@
 
 Inkplate display(INKPLATE_1BIT);
 StateManager stateManager;
-Network network;
+DashboardNetwork dashboardNetwork;
 DisplayManager displayManager(display);
 GameOfLife gameOfLife;
 BadukGame badukGame;
@@ -84,24 +84,24 @@ void setup() {
     }
 
     // Touchscreen
-    if (!display.tsInit(true)) {
+    if (!display.touchscreen.init(true)) {
         Serial.println("ERROR: Touchscreen initialization failed!");
     } else {
         Serial.println("Touchscreen initialized successfully");
     }
 
     // Frontlight
-    display.frontlight(true);
-    display.setFrontlight(INITIAL_FRONTLIGHT);
+    display.frontlight.setState(true);
+    display.frontlight.setBrightness(INITIAL_FRONTLIGHT);
     stateManager.frontlightLevel = INITIAL_FRONTLIGHT;
     Serial.print("Frontlight enabled at level: ");
     Serial.println(INITIAL_FRONTLIGHT);
 
     // 5. Connect to WiFi
     Serial.println("\nConnecting to WiFi...");
-    network.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_TIMEOUT);
+    dashboardNetwork.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_TIMEOUT);
 
-    if (!network.isConnected()) {
+    if (!dashboardNetwork.isConnected()) {
         Serial.println("ERROR: WiFi connection failed!");
         displayManager.drawWiFiErrorScreen();
         display.display();
@@ -136,11 +136,11 @@ void setup() {
 
     // Weather
     Serial.println("Fetching weather data...");
-    network.fetchWeather(&stateManager.weatherData, WEATHER_LATITUDE, WEATHER_LONGITUDE);
+    dashboardNetwork.fetchWeather(&stateManager.weatherData, WEATHER_LATITUDE, WEATHER_LONGITUDE);
 
     // Last.fm
     Serial.println("Fetching Last.fm data...");
-    network.fetchLastFm(&stateManager.lastFmData, LASTFM_API_KEY, LASTFM_USERNAME);
+    dashboardNetwork.fetchLastFm(&stateManager.lastFmData, LASTFM_API_KEY, LASTFM_USERNAME);
 
     // Read initial sensor data
     float temp = display.bme688.readTemperature() + BME688_TEMP_OFFSET;
@@ -212,8 +212,8 @@ void loop() {
     // 3. Fetch weather data (every 10 minutes)
     if (stateManager.shouldUpdateWeather(currentMillis)) {
         Serial.println("Fetching weather data...");
-        if (network.isConnected()) {
-            network.fetchWeather(&stateManager.weatherData, WEATHER_LATITUDE, WEATHER_LONGITUDE);
+        if (dashboardNetwork.isConnected()) {
+            dashboardNetwork.fetchWeather(&stateManager.weatherData, WEATHER_LATITUDE, WEATHER_LONGITUDE);
         } else {
             Serial.println("WiFi disconnected, skipping weather fetch");
             stateManager.weatherData.isStale = true;
@@ -226,8 +226,8 @@ void loop() {
     // 4. Fetch Last.fm data (every 10 minutes)
     if (stateManager.shouldUpdateLastFm(currentMillis)) {
         Serial.println("Fetching Last.fm data...");
-        if (network.isConnected()) {
-            network.fetchLastFm(&stateManager.lastFmData, LASTFM_API_KEY, LASTFM_USERNAME);
+        if (dashboardNetwork.isConnected()) {
+            dashboardNetwork.fetchLastFm(&stateManager.lastFmData, LASTFM_API_KEY, LASTFM_USERNAME);
         } else {
             Serial.println("WiFi disconnected, skipping Last.fm fetch");
             stateManager.lastFmData.isStale = true;
@@ -315,20 +315,20 @@ void loop() {
 
 void handleTouchInput() {
     // Check if top half of screen is touched (increase brightness)
-    if (display.touchInArea(0, 0, 600, 300)) {
+    if (display.touchscreen.touchInArea(0, 0, 600, 300)) {
         Serial.println("Touch detected in top half (increase brightness)");
         stateManager.increaseFrontlight();
-        display.setFrontlight(stateManager.frontlightLevel);
+        display.frontlight.setBrightness(stateManager.frontlightLevel);
         Serial.print("Frontlight level: ");
         Serial.println(stateManager.frontlightLevel);
         delay(200);  // Debounce
     }
 
     // Check if middle area is touched (300-400px, decrease brightness)
-    else if (display.touchInArea(0, 300, 600, 100)) {
+    else if (display.touchscreen.touchInArea(0, 300, 600, 100)) {
         Serial.println("Touch detected in middle area (decrease brightness)");
         stateManager.decreaseFrontlight();
-        display.setFrontlight(stateManager.frontlightLevel);
+        display.frontlight.setBrightness(stateManager.frontlightLevel);
         Serial.print("Frontlight level: ");
         Serial.println(stateManager.frontlightLevel);
         delay(200);  // Debounce
@@ -336,7 +336,7 @@ void handleTouchInput() {
 
     // Check if bottom display area is touched (400-600px) for mode switching
     // Touch left half (x=0-300) → Game of Life
-    else if (display.touchInArea(0, 400, 300, 200)) {
+    else if (display.touchscreen.touchInArea(0, 400, 300, 200)) {
         if (stateManager.displayMode != MODE_GAME_OF_LIFE) {
             Serial.println("Touch detected in bottom left - switching to Game of Life");
             stateManager.switchDisplayMode(MODE_GAME_OF_LIFE);
@@ -349,7 +349,7 @@ void handleTouchInput() {
     }
 
     // Touch right half (x=300-600) → Baduk
-    else if (display.touchInArea(300, 400, 300, 200)) {
+    else if (display.touchscreen.touchInArea(300, 400, 300, 200)) {
         if (stateManager.displayMode != MODE_BADUK) {
             Serial.println("Touch detected in bottom right - switching to Baduk");
             stateManager.switchDisplayMode(MODE_BADUK);
